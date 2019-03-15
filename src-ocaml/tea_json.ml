@@ -512,6 +512,48 @@ module Decoder = struct
     (* | JsException e -> Tea_result.Error ("Given an invalid JSON: " ^ e) *)
     | _ -> Tea_result.Error "Invalid JSON string"
 
+  module Pipeline = struct
+    open Tea_result
+
+    let optionalDecoder pathDecoder valDecoder fallback =
+      let nullOr decoder = oneOf [decoder; null fallback] in
+      let handleResult input =
+        match decodeValue pathDecoder input with
+        | Ok rawValue ->
+          begin match decodeValue (nullOr valDecoder) rawValue with
+          | Ok finalResult -> succeed finalResult
+          | Error finalError -> fail finalError
+          end
+        | Error _ ->
+          begin match decodeValue (keyValuePairs value) input with
+          | Ok _ -> succeed fallback
+          | Error finalErr -> fail finalErr
+          end
+      in
+      value |> andThen handleResult
+
+    let custom decoder wrapped = map2 (@@) wrapped decoder
+
+    let required key valDecoder decoder =
+      custom (field key valDecoder) decoder
+
+    let requiredAt path valDecoder decoder =
+      custom (at path valDecoder) decoder
+
+    let optional key valDecoder fallback decoder =
+      custom (optionalDecoder (field key value) valDecoder fallback) decoder
+
+    let optionalAt path valDecoder fallback decoder =
+      custom (optionalDecoder (at path value) valDecoder fallback) decoder
+
+    let decode = succeed
+
+    (* Can't seem to get the types right for this to work *)
+    (* let identity : 'a -> 'a = fun x -> x *)
+    (* let hardcoded : 'a -> ('a, ('b -> 'c)) t -> ('a, 'b) t = succeed >> custom *)
+    (* let resolve = andThen (fun x -> x) *)
+  end
+
 end
 
 

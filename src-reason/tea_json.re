@@ -1,6 +1,8 @@
 module Decoder = {
   type error = String.t;
+
   module ObjectDict = Map.Make(String);
+
   type t('input, 'result) =
     | Decoder('input => Tea_result.t('result, error));
   /*
@@ -13,8 +15,11 @@ module Decoder = {
    | Null : 'result -> ('result, error) Tea_result.t t
    | String : (string, error) Tea_result.t t
    */
+
   exception ParseFail(string);
+
   /* Primitive types */
+
   let string =
     Decoder(
       value =>
@@ -25,6 +30,7 @@ module Decoder = {
           }
         ),
     );
+
   let int =
     Decoder(
       value =>
@@ -40,6 +46,7 @@ module Decoder = {
           }
         ),
     );
+
   let float =
     Decoder(
       value =>
@@ -50,6 +57,7 @@ module Decoder = {
           }
         ),
     );
+
   let bool =
     Decoder(
       value =>
@@ -61,6 +69,7 @@ module Decoder = {
           }
         ),
     );
+
   let null = v =>
     Decoder(
       value =>
@@ -71,7 +80,9 @@ module Decoder = {
           }
         ),
     );
+
   /* Compound types */
+
   let list = (Decoder(decoder)) =>
     Decoder(
       value =>
@@ -90,6 +101,7 @@ module Decoder = {
           }
         ),
     );
+
   let array = (Decoder(decoder)) =>
     Decoder(
       value =>
@@ -108,6 +120,7 @@ module Decoder = {
           }
         ),
     );
+
   let keyValuePairs = (Decoder(decoder)) =>
     Decoder(
       value =>
@@ -132,6 +145,7 @@ module Decoder = {
           }
         ),
     );
+
   let dict = (Decoder(decoder)) =>
     Decoder(
       value =>
@@ -156,6 +170,7 @@ module Decoder = {
           }
         ),
     );
+
   let field = (key, Decoder(decoder)) =>
     Decoder(
       value =>
@@ -174,7 +189,9 @@ module Decoder = {
           }
         ),
     );
+
   let at = (fields, dec) => List.fold_right(field, fields, dec);
+
   let index = (idx, Decoder(decoder)) =>
     Decoder(
       value =>
@@ -192,6 +209,7 @@ module Decoder = {
           }
         ),
     );
+
   let maybe = (Decoder(decoder)) =>
     Decoder(
       value =>
@@ -200,6 +218,7 @@ module Decoder = {
         | Tea_result.Error(_) => Tea_result.Ok(None)
         },
     );
+
   let oneOf = decoders =>
     Decoder(
       value => {
@@ -218,6 +237,7 @@ module Decoder = {
         parse(value, decoders);
       },
     );
+
   let map = (mapper, Decoder(decoder1)) =>
     Decoder(
       value =>
@@ -228,6 +248,7 @@ module Decoder = {
           }
         ),
     );
+
   let map2 = (mapper, Decoder(decoder1), Decoder(decoder2)) =>
     Decoder(
       value =>
@@ -242,6 +263,7 @@ module Decoder = {
           }
         ),
     );
+
   let map3 =
       (mapper, Decoder(decoder1), Decoder(decoder2), Decoder(decoder3)) =>
     Decoder(
@@ -258,6 +280,7 @@ module Decoder = {
           }
         ),
     );
+
   let map4 =
       (
         mapper,
@@ -285,6 +308,7 @@ module Decoder = {
           }
         ),
     );
+
   let map5 =
       (
         mapper,
@@ -315,6 +339,7 @@ module Decoder = {
           }
         ),
     );
+
   let map6 =
       (
         mapper,
@@ -354,6 +379,7 @@ module Decoder = {
           }
         ),
     );
+
   let map7 =
       (
         mapper,
@@ -396,6 +422,7 @@ module Decoder = {
           }
         ),
     );
+
   let map8 =
       (
         mapper,
@@ -441,10 +468,15 @@ module Decoder = {
           }
         ),
     );
+
   /* Fancy Primitives */
+
   let succeed = v => Decoder(_value => Tea_result.Ok(v));
+
   let fail = e => Decoder(_value => Tea_result.Error(e));
+
   let value = Decoder(value => Tea_result.Ok(value));
+
   let andThen = (func, Decoder(decoder)) =>
     Decoder(
       value =>
@@ -455,21 +487,27 @@ module Decoder = {
         | Tea_result.Error(_) as err => err
         },
     );
+
   let lazy_ = func => andThen(func, succeed());
+
   let nullable = decoder =>
     oneOf([null(None), map(v => Some(v), decoder)]);
+
   /* Decoders */
+
   /* TODO:  Constrain this value type more */
   let decodeValue = (Decoder(decoder), value) =>
     try (decoder(value)) {
     | ParseFail(e) => Tea_result.Error(e)
     | _ => Tea_result.Error("Unknown JSON parsing error")
     };
+
   let decodeEvent = (Decoder(decoder), value: Web_node.event) =>
     try (decoder(Obj.magic(value))) {
     | ParseFail(e) => Tea_result.Error(e)
     | _ => Tea_result.Error("Unknown JSON parsing error")
     };
+
   let decodeString = (decoder, string) =>
     try (
       {
@@ -480,19 +518,77 @@ module Decoder = {
     /* | JsException e -> Tea_result.Error ("Given an invalid JSON: " ^ e) */
     | _ => Tea_result.Error("Invalid JSON string")
     };
+
+  module Pipeline = {
+    open Tea_result;
+
+    let optionalDecoder = (pathDecoder, valDecoder, fallback) => {
+      let nullOr = decoder => oneOf([decoder, null(fallback)]);
+      let handleResult = input =>
+        switch (decodeValue(pathDecoder, input)) {
+        | Ok(rawValue) =>
+          switch (decodeValue(nullOr(valDecoder), rawValue)) {
+          | Ok(finalResult) => succeed(finalResult)
+          | Error(finalError) => fail(finalError)
+          }
+        | Error(_) =>
+          switch (decodeValue(keyValuePairs(value), input)) {
+          | Ok(_) => succeed(fallback)
+          | Error(finalErr) => fail(finalErr)
+          }
+        };
+
+      value |> andThen(handleResult);
+    };
+
+    let custom = (decoder, wrapped) => map2((@@), wrapped, decoder);
+
+    let required = (key, valDecoder, decoder) =>
+      custom(field(key, valDecoder), decoder);
+
+    let requiredAt = (path, valDecoder, decoder) =>
+      custom(at(path, valDecoder), decoder);
+
+    let optional = (key, valDecoder, fallback, decoder) =>
+      custom(
+        optionalDecoder(field(key, value), valDecoder, fallback),
+        decoder,
+      );
+
+    let optionalAt = (path, valDecoder, fallback, decoder) =>
+      custom(
+        optionalDecoder(at(path, value), valDecoder, fallback),
+        decoder,
+      );
+
+    let decode = succeed;
+    /* Can't seem to get the types right for this to work */
+    /* let identity : 'a -> 'a = fun x -> x */
+    /* let hardcoded : 'a -> ('a, ('b -> 'c)) t -> ('a, 'b) t = succeed >> custom */
+    /* let resolve = andThen (fun x -> x) */
+  };
 };
 
 module Encoder = {
   open Web;
+
   type t = Json.t;
+
   let encode = (indentLevel, value) =>
     Web.Json.string_of_json(~indent=indentLevel, Js.Undefined.return(value));
+
   /* Encoders */
+
   let string = (v: string) => Json.of_type(Json.String, v);
+
   let int = (v: int) => Json.of_type(Json.Number, float_of_int(v));
+
   let float = (v: float) => Json.of_type(Json.Number, v);
+
   let bool = (v: bool) => Json.of_type(Json.Boolean, v);
+
   let null = Json.of_type(Json.Null, Json.null);
+
   let object_ = v => {
     let aux = (o, (k, v)) => {
       let () = Js.Dict.set(o, k, v);
@@ -501,7 +597,9 @@ module Encoder = {
     let o = List.fold_left(aux, Js.Dict.empty(), v);
     Json.of_type(Json.Object, o);
   };
+
   let array = (v: array('t)) => Json.of_type(Json.Array, v);
+
   let list = (v: list('t)) => Json.of_type(Json.Array, Array.of_list(v));
 };
 
