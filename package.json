@@ -15,7 +15,7 @@
     "prebuild:test": "run-s build",
     "build:test": "run-p build:test:*",
     "pretest": "run-s build:test",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node lib/js/test-ocaml/tests.js",
     "dual-syntax": "bin/dual-syntax"
   },
   "repository": {
