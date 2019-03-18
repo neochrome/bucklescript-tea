@@ -60,6 +60,32 @@ let parse_optional_default_missing_field () =
     assert (p.is_developer = false)
 
 
+let another_way () =
+  let decode = D.succeed in
+  let (|<) f x = D.map2 (|>) x f in
+  let hardcoded = D.succeed in
+  let optional decoder fallback =
+    D.maybe decoder
+    |> D.andThen (function
+      | None -> D.succeed fallback
+      | Some value -> D.succeed value)
+  in
+  
+  let data a b c d e = [a;b;c;d;e] in
+  let d =
+    decode data 
+    |< D.field "a" (optional D.int 11)
+    |< D.field "b" D.int
+    |< D.field "c" D.int
+    |< hardcoded 42
+    |< optional (D.field "d" D.int) 555
+  in
+  let json = {| { "a" : "a", "b": 2, "c": 3 } |} in
+  match D.decodeString d json with
+  | Error err -> failwith err
+  | Ok v -> assert (v = [11;2;3;42;555])
+
+
 let all () =
   let run t = t () in
   [
@@ -67,4 +93,5 @@ let all () =
     parse_required_missing_field_fails;
     parse_optional_all_fields_present;
     parse_optional_default_missing_field;
+    another_way;
   ] |> List.iter run

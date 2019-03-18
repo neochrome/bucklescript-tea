@@ -73,6 +73,34 @@ let parse_optional_default_missing_field = () => {
   };
 };
 
+let another_way = () => {
+  let decode = D.succeed;
+  let (|<) = (f, x) => D.map2((|>), x, f);
+  let hardcoded = D.succeed;
+  let optional = (decoder, fallback) =>
+    D.maybe(decoder)
+    |> D.andThen(
+         fun
+         | None => D.succeed(fallback)
+         | Some(value) => D.succeed(value),
+       );
+
+  let data = (a, b, c, d, e) => [a, b, c, d, e];
+  let d =
+    decode(data)
+    |< D.field("a", optional(D.int, 11))
+    |< D.field("b", D.int)
+    |< D.field("c", D.int)
+    |< hardcoded(42)
+    |< optional(D.field("d", D.int), 555);
+
+  let json = {| { "a" : "a", "b": 2, "c": 3 } |};
+  switch (D.decodeString(d, json)) {
+  | Error(err) => failwith(err)
+  | Ok(v) => assert(v == [11, 2, 3, 42, 555])
+  };
+};
+
 let all = () => {
   let run = t => t();
   [
@@ -80,6 +108,7 @@ let all = () => {
     parse_required_missing_field_fails,
     parse_optional_all_fields_present,
     parse_optional_default_missing_field,
+    another_way,
   ]
   |> List.iter(run);
 };
