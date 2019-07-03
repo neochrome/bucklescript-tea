@@ -36,7 +36,7 @@ type header =
   | Header(string, string);
 
 type expect('res) =
-  | Expect(bodyType, response => Tea_result.t('res, string));
+  | Expect(bodyType, response => result('res, string));
 
 type requestEvents('msg) = {
   onreadystatechange:
@@ -80,13 +80,12 @@ let expectStringResponse = func =>
       ({body, _}) =>
         switch (body) {
         | TextResponse(s) => func(s)
-        | _ => Tea_result.Error("Non-text response returned")
+        | _ => Error("Non-text response returned")
         },
     )
   );
 
-let expectString =
-  expectStringResponse(resString => Tea_result.Ok(resString));
+let expectString = expectStringResponse(resString => Ok(resString));
 
 let request = rawRequest => [@implicit_arity] Request(rawRequest, None);
 
@@ -107,8 +106,8 @@ let toTask = ([@implicit_arity] Request(request, _maybeEvents)) => {
   let [@implicit_arity] Expect(typ, responseToResult) = expect;
   Tea_task.nativeBinding(cb => {
     let enqRes = (result, _ev) => cb(result);
-    let enqResError = result => enqRes(Tea_result.Error(result));
-    let enqResOk = result => enqRes(Tea_result.Ok(result));
+    let enqResError = result => enqRes(Error(result));
+    let enqResOk = result => enqRes(Ok(result));
     let xhr = Web.XMLHttpRequest.create();
     let setEvent = (ev, cb) => ev(cb, xhr);
     let () =
@@ -123,8 +122,8 @@ let toTask = ([@implicit_arity] Request(request, _maybeEvents)) => {
           open Web.XMLHttpRequest;
           let headers =
             switch (getAllResponseHeadersAsDict(xhr)) {
-            | Tea_result.Error(_e) => StringMap.empty
-            | Tea_result.Ok(headers) => headers
+            | Error(_e) => StringMap.empty
+            | Ok(headers) => headers
             };
           let response = {
             status: {
@@ -139,9 +138,9 @@ let toTask = ([@implicit_arity] Request(request, _maybeEvents)) => {
             enqResError(BadStatus(response), ());
           } else {
             switch (responseToResult(response)) {
-            | Tea_result.Error(error) =>
+            | Error(error) =>
               enqResError([@implicit_arity] BadPayload(error, response), ())
-            | Tea_result.Ok(result) => enqResOk(result, ())
+            | Ok(result) => enqResOk(result, ())
             };
           };
         },
@@ -175,8 +174,8 @@ let send = (resultToMessage, [@implicit_arity] Request(request, maybeEvents)) =>
   Tea_cmd.call(callbacks => {
     let enqRes = (result, _ev) =>
       Vdom.(callbacks^.enqueue(resultToMessage(result)));
-    let enqResError = result => enqRes(Tea_result.Error(result));
-    let enqResOk = result => enqRes(Tea_result.Ok(result));
+    let enqResError = result => enqRes(Error(result));
+    let enqResOk = result => enqRes(Ok(result));
     let xhr = Web.XMLHttpRequest.create();
     let setEvent = (ev, cb) => ev(cb, xhr);
     let () =
@@ -205,8 +204,8 @@ let send = (resultToMessage, [@implicit_arity] Request(request, maybeEvents)) =>
           open Web.XMLHttpRequest;
           let headers =
             switch (getAllResponseHeadersAsDict(xhr)) {
-            | Tea_result.Error(_e) => StringMap.empty
-            | Tea_result.Ok(headers) => headers
+            | Error(_e) => StringMap.empty
+            | Ok(headers) => headers
             };
           let response = {
             status: {
@@ -221,9 +220,9 @@ let send = (resultToMessage, [@implicit_arity] Request(request, maybeEvents)) =>
             enqResError(BadStatus(response), ());
           } else {
             switch (responseToResult(response)) {
-            | Tea_result.Error(error) =>
+            | Error(error) =>
               enqResError([@implicit_arity] BadPayload(error, response), ())
-            | Tea_result.Ok(result) => enqResOk(result, ())
+            | Ok(result) => enqResOk(result, ())
             };
           };
         },
@@ -250,11 +249,11 @@ let send = (resultToMessage, [@implicit_arity] Request(request, maybeEvents)) =>
   });
 };
 
-[@bs.val] external encodeURIComponent: string => string = "";
+[@bs.val] external encodeURIComponent: string => string = "encodeURIComponent";
 
 let encodeUri = str => encodeURIComponent(str);
 
-[@bs.val] external decodeURIComponent: string => string = "";
+[@bs.val] external decodeURIComponent: string => string = "decodeURIComponent";
 
 let decodeUri = str =>
   try (Some(decodeURIComponent(str))) {
@@ -300,16 +299,13 @@ module Progress = {
           open Vdom;
           let lengthComputable =
             Tea_json.Decoder.(
-              Tea_result.(
-                switch (decodeValue(field("lengthComputable", bool), ev)) {
-                | Error(_e) => false
-                | Ok(v) => v
-                }
-              )
+              switch (decodeValue(field("lengthComputable", bool), ev)) {
+              | Error(_e) => false
+              | Ok(v) => v
+              }
             );
           if (lengthComputable) {
             open Tea_json.Decoder;
-            open Tea_result;
             let decoder =
               map2(
                 (bytes, bytesExpected) => {bytes, bytesExpected},
