@@ -1,8 +1,3 @@
-/* TODO:  Remove this when Bucklescript is updated to OCaml 4.03 as it includes result */
-type t /* result */('a, 'b) =
-  | Ok('a)
-  | Error('b);
-
 let result_to_option =
   fun
   | Ok(a) => Some(a)

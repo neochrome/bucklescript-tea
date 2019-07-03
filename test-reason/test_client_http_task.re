@@ -1,6 +1,5 @@
 open Tea;
 open Tea.Html;
-type result('ok, 'err) = Tea_result.t('ok, 'err);
 
 [@bs.deriving accessors]
 type msg =

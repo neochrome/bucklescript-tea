@@ -3,7 +3,6 @@
 
 module LocalStorage = struct
   open Tea_task
-  open Tea_result
 
   let length =
     nativeBinding (fun cb ->

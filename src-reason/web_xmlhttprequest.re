@@ -76,12 +76,12 @@ class type _xmlhttprequest =
     pub ontimeout: event_timeout => unit;
     [@bs.get]
     [@bs.set]
-    pub onloadend: event_loadend => unit
+    pub onloadend: event_loadend => unit;
   };
   /* Methods */
 type t = Js.t(_xmlhttprequest);
 
-[@bs.new] external create : unit => t = "XMLHttpRequest";
+[@bs.new] external create: unit => t = "XMLHttpRequest";
 
 type errors =
   | IncompleteResponse
@@ -99,48 +99,42 @@ type body =
 
 /* Main interface functions */
 
-let abort = (x: t) : unit => x##abort();
+let abort = (x: t): unit => x##abort();
 
-let getAllResponseHeaders = (x: t) : Tea_result.t(string, errors) =>
-  Tea_result.(
-    switch (Js.Null.toOption(x##getAllResponseHeaders())) {
-    | None => Error(IncompleteResponse)
-    | Some("") => Error(NetworkError)
-    | Some(s) => Ok(s)
-    }
-  );
+let getAllResponseHeaders = (x: t): result(string, errors) =>
+  switch (Js.Null.toOption(x##getAllResponseHeaders())) {
+  | None => Error(IncompleteResponse)
+  | Some("") => Error(NetworkError)
+  | Some(s) => Ok(s)
+  };
 
 let getAllResponseHeadersAsList =
-    (x: t)
-    : Tea_result.t(list((string, string)), errors) =>
-  Tea_result.(
-    switch (getAllResponseHeaders(x)) {
-    | Error(_) as err => err
-    | Ok(s) =>
-      Ok(
-        s
-        |> Js.String.split("\r\n")
-        |> Array.map(Js.String.splitAtMost(": ", ~limit=2))
-        |> Array.to_list
-        |> List.filter(a => Array.length(a) === 2)
-        |> List.map(
-             fun
-             | [|key, value|] => (key, value)
-             | _ => failwith("Cannot happen, already checked length"),
-           ),
-      )
-    }
-  );
+    (x: t): result(list((string, string)), errors) =>
+  switch (getAllResponseHeaders(x)) {
+  | Error(_) as err => err
+  | Ok(s) =>
+    Ok(
+      s
+      |> Js.String.split("\r\n")
+      |> Array.map(Js.String.splitAtMost(": ", ~limit=2))
+      |> Array.to_list
+      |> List.filter(a => Array.length(a) === 2)
+      |> List.map(
+           fun
+           | [|key, value|] => (key, value)
+           | _ => failwith("Cannot happen, already checked length"),
+         ),
+    )
+  };
 
 let getAllResponseHeadersAsDict =
-    (x: t)
-    : Tea_result.t(Map.Make(String).t(string), errors) => {
+    (x: t): result(Map.Make(String).t(string), errors) => {
   module StringMap = Map.Make(String);
   switch (getAllResponseHeadersAsList(x)) {
-  | Tea_result.Error(_) as err => err
-  | Tea_result.Ok(l) =>
+  | Error(_) as err => err
+  | Ok(l) =>
     let insert = (d, (k, v)) => StringMap.add(k, v, d);
-    Tea_result.Ok(List.fold_left(insert, StringMap.empty, l));
+    Ok(List.fold_left(insert, StringMap.empty, l));
   };
 };
 
@@ -150,10 +144,10 @@ let open_ =
     (method': string, url: string, ~async=true, ~user="", ~password="", x) =>
   x##_open(method', url, async, user, password);
 
-let overrideMimeType = (mimetype: string, x: t) : unit =>
+let overrideMimeType = (mimetype: string, x: t): unit =>
   x##overrideMimeType(mimetype);
 
-let send = (body: body, x: t) : unit =>
+let send = (body: body, x: t): unit =>
   switch (body) {
   | EmptyBody => x##send()
   | EmptyStringBody => x##send__string(Js.Null.empty)
@@ -206,11 +200,13 @@ type responseBody =
   | TextResponse(string)
   | RawResponse(string, unit);
 
-let set_onreadystatechange = (cb: event_readystatechange => unit, x: t) : unit => x##onreadystatechange#=cb;
+let set_onreadystatechange = (cb: event_readystatechange => unit, x: t): unit =>
+  x##onreadystatechange #= cb;
 
-let get_onreadystatechange = (x: t) : (event_readystatechange => unit) => x##onreadystatechange;
+let get_onreadystatechange = (x: t): (event_readystatechange => unit) =>
+  x##onreadystatechange;
 
-let readyState = (x: t) : state =>
+let readyState = (x: t): state =>
   switch (x##readyState) {
   | 0 => Unsent
   | 1 => Opened
@@ -221,18 +217,18 @@ let readyState = (x: t) : state =>
     failwith("Invalid return from 'readystate' of: " ++ string_of_int(i))
   };
 
-let set_responseType = (typ: responseType, x: t) : unit =>
+let set_responseType = (typ: responseType, x: t): unit =>
   switch (typ) {
-  | StringResponseType => x##responseType#=""
-  | ArrayBufferResponseType => x##responseType#="arraybuffer"
-  | BlobResponseType => x##responseType#="blob"
-  | DocumentResponseType => x##responseType#="document"
-  | JsonResponseType => x##responseType#="json"
-  | TextResponseType => x##responseType#="text"
-  | RawResponseType(s) => x##responseType#=s
+  | StringResponseType => x##responseType #= ""
+  | ArrayBufferResponseType => x##responseType #= "arraybuffer"
+  | BlobResponseType => x##responseType #= "blob"
+  | DocumentResponseType => x##responseType #= "document"
+  | JsonResponseType => x##responseType #= "json"
+  | TextResponseType => x##responseType #= "text"
+  | RawResponseType(s) => x##responseType #= s
   };
 
-let get_responseType = (x: t) : responseType =>
+let get_responseType = (x: t): responseType =>
   switch (x##responseType) {
   | "" => StringResponseType
   | "arraybuffer" => ArrayBufferResponseType
@@ -243,7 +239,7 @@ let get_responseType = (x: t) : responseType =>
   | s => RawResponseType(s)
   };
 
-let get_response = (x: t) : responseBody =>
+let get_response = (x: t): responseBody =>
   switch (Js.Null.toOption(x##response)) {
   | None => NoResponse
   | Some(resp) =>
@@ -258,49 +254,53 @@ let get_response = (x: t) : responseBody =>
     }
   };
 
-let get_responseText = (x: t) : string => x##responseText;
+let get_responseText = (x: t): string => x##responseText;
 
-let get_responseURL = (x: t) : string => x##responseURL;
+let get_responseURL = (x: t): string => x##responseURL;
 
-let get_responseXML = (x: t) : option(Web_document.t) =>
+let get_responseXML = (x: t): option(Web_document.t) =>
   Js.Null.toOption(x##responseXML);
 
-let get_status = (x: t) : int => x##status;
+let get_status = (x: t): int => x##status;
 
-let get_statusText = (x: t) : string => x##statusText;
+let get_statusText = (x: t): string => x##statusText;
 
-let set_timeout = (t: float, x: t) : unit => x##timeout#=t;
+let set_timeout = (t: float, x: t): unit => x##timeout #= t;
 
-let get_timeout = (x: t) : float => x##timeout;
+let get_timeout = (x: t): float => x##timeout;
 
-let set_withCredentials = (b: bool, x: t) : unit => x##withCredentials#=b;
+let set_withCredentials = (b: bool, x: t): unit => x##withCredentials #= b;
 
-let get_withCredentials = (x: t) : bool => x##withCredentials;
+let get_withCredentials = (x: t): bool => x##withCredentials;
 
-let set_onabort = (cb: event_abort => unit, x: t) : unit => x##onabort#=cb;
+let set_onabort = (cb: event_abort => unit, x: t): unit => x##onabort #= cb;
 
-let get_onabort = (x: t) : (event_abort => unit) => x##onabort;
+let get_onabort = (x: t): (event_abort => unit) => x##onabort;
 
-let set_onerror = (cb: event_error => unit, x: t) : unit => x##onerror#=cb;
+let set_onerror = (cb: event_error => unit, x: t): unit => x##onerror #= cb;
 
-let get_onerror = (x: t) : (event_error => unit) => x##onerror;
+let get_onerror = (x: t): (event_error => unit) => x##onerror;
 
-let set_onload = (cb: event_load => unit, x: t) : unit => x##onload#=cb;
+let set_onload = (cb: event_load => unit, x: t): unit => x##onload #= cb;
 
-let get_onload = (x: t) : (event_load => unit) => x##onload;
+let get_onload = (x: t): (event_load => unit) => x##onload;
 
-let set_onloadstart = (cb: event_loadstart => unit, x: t) : unit => x##onloadstart#=cb;
+let set_onloadstart = (cb: event_loadstart => unit, x: t): unit =>
+  x##onloadstart #= cb;
 
-let get_onloadstart = (x: t) : (event_loadstart => unit) => x##onloadstart;
+let get_onloadstart = (x: t): (event_loadstart => unit) => x##onloadstart;
 
-let set_onprogress = (cb: event_loadstart => unit, x: t) : unit => x##onprogress#=cb;
+let set_onprogress = (cb: event_loadstart => unit, x: t): unit =>
+  x##onprogress #= cb;
 
-let get_onprogress = (x: t) : (event_loadstart => unit) => x##onprogress;
+let get_onprogress = (x: t): (event_loadstart => unit) => x##onprogress;
 
-let set_ontimeout = (cb: event_timeout => unit, x: t) : unit => x##ontimeout#=cb;
+let set_ontimeout = (cb: event_timeout => unit, x: t): unit =>
+  x##ontimeout #= cb;
 
-let get_ontimeout = (x: t) : (event_timeout => unit) => x##ontimeout;
+let get_ontimeout = (x: t): (event_timeout => unit) => x##ontimeout;
 
-let set_onloadend = (cb: event_loadend => unit, x: t) : unit => x##onloadend#=cb;
+let set_onloadend = (cb: event_loadend => unit, x: t): unit =>
+  x##onloadend #= cb;
 
-let get_onloadend = (x: t) : (event_loadend => unit) => x##onloadend;
+let get_onloadend = (x: t): (event_loadend => unit) => x##onloadend;

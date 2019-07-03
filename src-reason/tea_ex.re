@@ -1,7 +1,8 @@
 /* Everything here is not in Elm and is purely used as an extension and may vanish at any time if a better API comes out. */
+
 module LocalStorage = {
   open Tea_task;
-  open Tea_result;
+
   let length =
     nativeBinding(cb =>
       switch (Web.Window.LocalStorage.length(Web.Window.window)) {
@@ -9,6 +10,7 @@ module LocalStorage = {
       | Some(value) => cb(Ok(value))
       }
     );
+
   let clear =
     nativeBinding(cb =>
       switch (Web.Window.LocalStorage.clear(Web.Window.window)) {
@@ -16,7 +18,8 @@ module LocalStorage = {
       | Some(value) => cb(Ok(value))
       }
     );
-  let clearCmd = () => Tea_task.attemptOpt((_) => None, clear);
+  let clearCmd = () => Tea_task.attemptOpt(_ => None, clear);
+
   let key = idx =>
     nativeBinding(cb =>
       switch (Web.Window.LocalStorage.key(Web.Window.window, idx)) {
@@ -24,6 +27,7 @@ module LocalStorage = {
       | Some(value) => cb(Ok(value))
       }
     );
+
   let getItem = key =>
     nativeBinding(cb =>
       switch (Web.Window.LocalStorage.getItem(Web.Window.window, key)) {
@@ -31,6 +35,7 @@ module LocalStorage = {
       | Some(value) => cb(Ok(value))
       }
     );
+
   let removeItem = key =>
     nativeBinding(cb =>
       switch (Web.Window.LocalStorage.removeItem(Web.Window.window, key)) {
@@ -38,8 +43,8 @@ module LocalStorage = {
       | Some(value) => cb(Ok(value))
       }
     );
-  let removeItemCmd = key =>
-    Tea_task.attemptOpt((_) => None, removeItem(key));
+  let removeItemCmd = key => Tea_task.attemptOpt(_ => None, removeItem(key));
+
   let setItem = (key, value) =>
     nativeBinding(cb =>
       switch (Web.Window.LocalStorage.setItem(Web.Window.window, key, value)) {
@@ -48,5 +53,5 @@ module LocalStorage = {
       }
     );
   let setItemCmd = (key, value) =>
-    Tea_task.attemptOpt((_) => None, setItem(key, value));
+    Tea_task.attemptOpt(_ => None, setItem(key, value));
 };

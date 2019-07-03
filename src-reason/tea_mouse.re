@@ -14,12 +14,10 @@ let registerGlobal = (name, key, tagger) => {
     let callbacks = ref(callbacks_base);
     let fn = ev =>
       Tea_json.Decoder.(
-        Tea_result.(
-          switch (decodeEvent(position, ev)) {
-          | Error(_) => None
-          | Ok(pos) => Some(tagger(pos))
-          }
-        )
+        switch (decodeEvent(position, ev)) {
+        | Error(_) => None
+        | Ok(pos) => Some(tagger(pos))
+        }
       );
     let handler = [@implicit_arity] EventHandlerCallback(key, fn);
     let elem = Web_node.document_node;
